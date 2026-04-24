@@ -365,6 +365,8 @@ function resumeApp() {
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") resumeApp(); });
 window.addEventListener("pageshow", e => { if (e.persisted) resumeApp(); });
 load();
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 </script>
 </body>
 </html>
