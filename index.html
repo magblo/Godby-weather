@@ -106,7 +106,8 @@
   .metric .k { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
   .metric .v { font-size: 1.15rem; font-weight: 500; margin-top: .15rem; font-variant-numeric: tabular-nums; }
   .metric .v small { color: var(--muted); font-weight: 400; font-size: .8rem; margin-left: .15rem; }
-  .wind-arrow { display: inline-block; color: var(--accent); transition: transform .3s ease; line-height: 1; }
+  .wind-arrow { display: inline-block; color: var(--accent); transition: transform .3s ease; vertical-align: middle; }
+  .feels-like { font-size: .8rem; color: var(--muted); margin-top: .2rem; }
 
   .now-temp-row { display: flex; align-items: center; gap: .65rem; }
   .now-icon svg { display: block; width: 2.75rem; height: 2.75rem; color: var(--accent); opacity: .9; }
@@ -183,7 +184,13 @@ const FMI_NS = "http://xml.fmi.fi/schema/wfs/2.0";
 const GML_NS = "http://www.opengis.net/gml/3.2";
 
 const OBS_PARAMS = ["t2m", "ws_10min", "wd_10min", "rh", "r_24h"];
-const windArrow = deg => `<span class="wind-arrow" style="transform:rotate(${deg}deg)" aria-label="${Math.round(deg)}°">↓</span>`;
+function degToCompass(deg) {
+  return ['N','NO','O','SO','S','SV','V','NV'][Math.round(((deg % 360) + 360) % 360 / 45) % 8];
+}
+const windArrow = deg => {
+  const compass = degToCompass(deg);
+  return `<svg class="wind-arrow" style="transform:rotate(${deg}deg)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-label="${Math.round(deg)}°"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="8 15 12 19 16 15"/></svg>\u202f${compass}`;
+};
 const OBS_LABEL = {
   t2m:      { name: "Temperatur",      unit: "°C" },
   ws_10min: { name: "Vind",            unit: "m/s" },
@@ -275,7 +282,7 @@ async function fetchObservations() {
   const now = Date.now();
   const start = new Date(now - 24 * 60 * 60 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
   const recent = new Date(now - 60 * 60 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
-  const fmiParams = [...OBS_PARAMS.filter(p => p !== "r_24h"), "wawa", "r_1h"].join(",");
+  const fmiParams = [...OBS_PARAMS.filter(p => p !== "r_24h"), "wawa", "r_1h", "FeelsLike"].join(",");
   const [obsXml, namesXml] = await Promise.all([
     wfs({ storedquery_id: "fmi::observations::weather::simple", bbox: BBOX, parameters: fmiParams, starttime: start }),
     wfs({ storedquery_id: "fmi::observations::weather::multipointcoverage", bbox: BBOX, parameters: "t2m", starttime: recent }),
@@ -352,6 +359,9 @@ function renderNow(s, offline) {
   const wawaVal = s.values.wawa?.value;
   const iconHtml = (wawaVal != null && !isNaN(wawaVal))
     ? `<div class="now-icon">${weatherIcon(wawaToIconId(wawaVal), 44)}</div>` : '';
+  const fl = s.values.FeelsLike?.value;
+  const feelsLikeHtml = (fl != null && !isNaN(fl))
+    ? `<div class="feels-like">Känns som ${Math.round(fl)}°</div>` : '';
   const metrics = OBS_PARAMS
     .filter(p => p !== "t2m" && s.values[p])
     .map(p => {
@@ -369,7 +379,10 @@ function renderNow(s, offline) {
         <div class="station-chip">${s.name}</div>
         <div class="now-temp-row">
           ${iconHtml}
-          <div class="now-temp">${t != null ? t.toFixed(1) : "–"}<span class="unit">°C</span></div>
+          <div>
+            <div class="now-temp">${t != null ? t.toFixed(1) : "–"}<span class="unit">°C</span></div>
+            ${feelsLikeHtml}
+          </div>
         </div>
       </div>
       <div class="now-meta">
