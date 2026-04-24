@@ -123,17 +123,19 @@
     row-gap: .1rem;
     padding: .7rem .25rem;
     border-bottom: 1px solid var(--border);
+    background-image: linear-gradient(to right, var(--pop-color, transparent) var(--pop-pct, 0%), transparent var(--pop-pct, 0%));
+    background-size: 100% 2px;
+    background-position: bottom;
+    background-repeat: no-repeat;
   }
   .hour:last-child { border-bottom: none; }
   .hour .time { grid-area: time; align-self: center; font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 500; }
-  .hour .icon { grid-area: icon; align-self: center; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .hour .icon { grid-area: icon; align-self: center; text-align: center; }
   .hour .icon svg { display: block; width: 22px; height: 22px; }
-  .pop { display: flex; align-items: center; gap: 2px; font-size: .62rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
   .hour .desc { grid-area: desc; align-self: end; font-size: .9rem; color: var(--text); line-height: 1.25; }
   .hour .meta { grid-area: meta; align-self: start; font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; gap: .65rem; }
   .hour .meta .rain { color: var(--accent); }
   .hour .meta .rain.zero { color: var(--muted); opacity: .45; }
-  .now-pop { margin-top: .3rem; font-size: .82rem; font-weight: 500; }
   .hour .temp { grid-area: temp; align-self: center; font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
   .hour.new-day { border-top: 1px solid var(--border); margin-top: .25rem; padding-top: .9rem; position: relative; }
   .hour.new-day::before {
@@ -238,7 +240,6 @@ function popColor(pct) {
   return `hsl(${Math.round(213 + t * 8)},${Math.round(93 - t * 10)}%,${Math.round(80 - t * 46)}%)`;
 }
 
-const DROP_SVG = `<svg viewBox="0 0 8 10" width="7" height="9" aria-hidden="true" fill="currentColor" stroke="none"><path d="M4,.5C4,.5 7.5,4 7.5,7A3.5,3.5 0 1 1,.5,7C.5,4 4,.5Z"/></svg>`;
 
 function wawaToIconId(w) {
   const n = Math.round(w);
@@ -342,15 +343,12 @@ async function fetchForecast() {
   return [...byTime.values()].sort((a, b) => a.time.localeCompare(b.time)).slice(0, 48);
 }
 
-function renderNow(s, offline, firstPop) {
+function renderNow(s, offline) {
   const t = s.values.t2m?.value;
   const time = s.values.t2m?.time ?? Object.values(s.values)[0]?.time;
   const wawaVal = s.values.wawa?.value;
   const iconHtml = (wawaVal != null && !isNaN(wawaVal))
     ? `<div class="now-icon">${weatherIcon(wawaToIconId(wawaVal), 44)}</div>` : '';
-  const pop = Number.isFinite(firstPop) ? Math.round(firstPop) : null;
-  const popHtml = (pop !== null && pop >= 10)
-    ? `<div class="now-pop" style="color:${popColor(pop)}">${DROP_SVG} Regn inom 1h: ${pop}%</div>` : '';
   const metrics = OBS_PARAMS
     .filter(p => p !== "t2m" && s.values[p])
     .map(p => {
@@ -370,7 +368,6 @@ function renderNow(s, offline, firstPop) {
           ${iconHtml}
           <div class="now-temp">${t != null ? t.toFixed(1) : "–"}<span class="unit">°C</span></div>
         </div>
-        ${popHtml}
       </div>
       <div class="now-meta">
         ${s.dist.toFixed(1)} km från Godby<br>
@@ -393,16 +390,18 @@ function renderForecast(rows) {
     const wind = Number.isFinite(r.windspeedms) ? r.windspeedms.toFixed(0) + " m/s" : "";
     const rainVal = Number.isFinite(r.precipitation1h) ? r.precipitation1h : 0;
     const rain = rainVal > 0 ? rainVal.toFixed(1) + " mm" : "0 mm";
-    const pop = Number.isFinite(r.PoP) ? Math.round(r.PoP) : null;
-    const popHtml = (pop !== null && pop >= 10)
-      ? `<span class="pop" style="color:${popColor(pop)}">${DROP_SVG}${pop}%</span>` : '';
+    const pop = Number.isFinite(r.PoP) ? Math.round(r.PoP) : 0;
     const dayKey = d.toDateString();
     const isNewDay = dayKey !== lastDay && lastDay !== null;
     const dayLabel = d.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" });
     lastDay = dayKey;
-    return `<div class="hour${isNewDay ? " new-day" : ""}"${isNewDay ? ` data-day="${dayLabel}"` : ""}>
+    const attrs = [
+      isNewDay ? `data-day="${dayLabel}"` : '',
+      pop >= 10 ? `style="--pop-color:${popColor(pop)};--pop-pct:${pop}%"` : '',
+    ].filter(Boolean).join(' ');
+    return `<div class="hour${isNewDay ? " new-day" : ""}"${attrs ? ' ' + attrs : ''}>
       <div class="time">${hh}</div>
-      <div class="icon">${icon}${popHtml}</div>
+      <div class="icon">${icon}</div>
       <div class="desc">${desc}</div>
       <div class="meta">
         <span class="wind">${wind}</span>
@@ -422,7 +421,7 @@ async function load() {
   document.getElementById("forecast").textContent = "Laddar…";
   try {
     const [obs, fc] = await Promise.all([fetchObservations(), fetchForecast()]);
-    renderNow(obs, !navigator.onLine, fc[0]?.PoP);
+    renderNow(obs, !navigator.onLine);
     renderForecast(fc);
     lastLoaded = Date.now();
   } catch (e) {
