@@ -353,6 +353,9 @@ function renderForecast(rows) {
   document.getElementById("forecast").innerHTML = `<div class="forecast">${items}</div>`;
 }
 
+let lastLoaded = 0;
+const STALE_MS = 5 * 60 * 1000;
+
 async function load() {
   document.getElementById("now").textContent = "Laddar…";
   document.getElementById("forecast").textContent = "Laddar…";
@@ -360,20 +363,22 @@ async function load() {
     const [obs, fc] = await Promise.all([fetchObservations(), fetchForecast()]);
     renderNow(obs);
     renderForecast(fc);
+    lastLoaded = Date.now();
   } catch (e) {
     document.getElementById("now").innerHTML = `<span class="err">Fel: ${e.message}</span>`;
     document.getElementById("forecast").innerHTML = "";
   }
 }
 
-document.getElementById("reload").addEventListener("click", load);
-load();
+function resumeApp() {
+  window.scrollTo({ top: 0, behavior: "instant" });
+  if (Date.now() - lastLoaded > STALE_MS) load();
+}
 
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") {
-    window.scrollTo({ top: 0, behavior: "instant" });
-  }
-});
+document.getElementById("reload").addEventListener("click", load);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") resumeApp(); });
+window.addEventListener("pageshow", e => { if (e.persisted) resumeApp(); });
+load();
 </script>
 </body>
 </html>
