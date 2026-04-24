@@ -146,6 +146,9 @@
     text-transform: uppercase; letter-spacing: .08em;
     padding: 0 .5rem;
   }
+  .hour.new-day.first-day { border-top: none; margin-top: 0; padding-top: 1.4rem; }
+  .hour.new-day.first-day::before { top: .3rem; background: transparent; padding-left: 0; }
+  .hour.current { box-shadow: inset 3px 0 0 var(--accent); }
 
   .skeleton { color: var(--muted); font-size: .9rem; }
   .err { color: #dc2626; }
@@ -380,8 +383,13 @@ function renderNow(s, offline) {
 
 function renderForecast(rows) {
   if (!rows.length) { document.getElementById("forecast").textContent = "Ingen prognos tillgänglig."; return; }
-  let lastDay = null;
-  const items = rows.map(r => {
+  const nowMs = Date.now();
+  const todayKey = new Date().toDateString();
+  const tomorrowKey = new Date(nowMs + 86400000).toDateString();
+  const currentIdx = rows.reduce((best, r, i) =>
+    Math.abs(new Date(r.time) - nowMs) < Math.abs(new Date(rows[best].time) - nowMs) ? i : best, 0);
+  let lastDay = "";
+  const items = rows.map((r, i) => {
     const d = new Date(r.time);
     const [iconId, desc] = SYMBOLS[Math.round(r.weathersymbol3)] ?? ['cloud', '—'];
     const icon = weatherIcon(iconId);
@@ -392,14 +400,22 @@ function renderForecast(rows) {
     const rain = rainVal > 0 ? rainVal.toFixed(1) + " mm" : "0 mm";
     const pop = Number.isFinite(r.PoP) ? Math.round(r.PoP) : 0;
     const dayKey = d.toDateString();
-    const isNewDay = dayKey !== lastDay && lastDay !== null;
-    const dayLabel = d.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" });
+    const isNewDay = dayKey !== lastDay;
+    const isFirstDay = lastDay === "";
+    let dayLabel = "";
+    if (isNewDay) {
+      if (dayKey === todayKey) dayLabel = "Idag";
+      else if (dayKey === tomorrowKey) dayLabel = "Imorgon";
+      else dayLabel = d.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" });
+    }
     lastDay = dayKey;
+    const isCurrent = i === currentIdx;
+    const cls = ["hour", isNewDay ? "new-day" : "", isFirstDay ? "first-day" : "", isCurrent ? "current" : ""].filter(Boolean).join(" ");
     const attrs = [
       isNewDay ? `data-day="${dayLabel}"` : '',
       pop >= 10 ? `style="--pop-color:${popColor(pop)};--pop-pct:${pop}%"` : '',
     ].filter(Boolean).join(' ');
-    return `<div class="hour${isNewDay ? " new-day" : ""}"${attrs ? ' ' + attrs : ''}>
+    return `<div class="${cls}"${attrs ? ' ' + attrs : ''}>
       <div class="time">${hh}</div>
       <div class="icon">${icon}</div>
       <div class="desc">${desc}</div>
