@@ -70,19 +70,7 @@
   .title .loc { color: var(--accent); }
   .sub { color: var(--muted); margin: .25rem 0 0; font-size: .9rem; }
 
-  button#reload {
-    font: inherit; color: var(--text);
-    padding: .55rem .9rem; border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--surface-solid);
-    cursor: pointer; display: inline-flex; align-items: center; gap: .4rem;
-    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
-    box-shadow: var(--shadow);
-  }
-  button#reload:hover { border-color: var(--accent); transform: translateY(-1px); }
-  button#reload:active { transform: translateY(0); }
-
-  .section-label {
+.section-label {
     text-transform: uppercase; letter-spacing: .1em; font-size: .72rem; font-weight: 600;
     color: var(--muted); margin: 1.75rem .25rem .6rem;
   }
@@ -165,7 +153,6 @@
       <h1 class="title">Väder · <span class="loc">Godby</span></h1>
       <p class="sub">Realtid och 48 h prognos · Åland</p>
     </div>
-    <button id="reload" title="Uppdatera">↻ Uppdatera</button>
   </header>
 
   <div class="section-label">Just nu</div>
@@ -375,7 +362,6 @@ function resumeApp() {
   if (Date.now() - lastLoaded > STALE_MS) load();
 }
 
-document.getElementById("reload").addEventListener("click", load);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") resumeApp(); });
 window.addEventListener("pageshow", e => { if (e.persisted) resumeApp(); });
 load();
