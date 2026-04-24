@@ -110,20 +110,23 @@
   .forecast { display: flex; flex-direction: column; }
   .hour {
     display: grid;
-    grid-template-columns: 56px 32px 1fr auto auto;
-    align-items: center;
-    gap: .75rem;
+    grid-template-columns: 48px 30px 1fr auto;
+    grid-template-areas:
+      "time icon desc temp"
+      "time icon meta temp";
+    column-gap: .7rem;
+    row-gap: .1rem;
     padding: .7rem .25rem;
     border-bottom: 1px solid var(--border);
   }
   .hour:last-child { border-bottom: none; }
-  .hour .time { font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 500; }
-  .hour .icon { font-size: 1.4rem; line-height: 1; text-align: center; }
-  .hour .desc { font-size: .85rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .hour .wind { font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 52px; text-align: right; }
-  .hour .rain { font-size: .78rem; color: var(--accent); font-variant-numeric: tabular-nums; min-width: 52px; text-align: right; margin-left: .25rem; }
-  .hour .rain.zero { color: var(--muted); opacity: .45; }
-  .hour .temp { font-size: 1rem; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; }
+  .hour .time { grid-area: time; align-self: center; font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 500; }
+  .hour .icon { grid-area: icon; align-self: center; font-size: 1.4rem; line-height: 1; text-align: center; }
+  .hour .desc { grid-area: desc; align-self: end; font-size: .9rem; color: var(--text); line-height: 1.25; }
+  .hour .meta { grid-area: meta; align-self: start; font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; gap: .65rem; }
+  .hour .meta .rain { color: var(--accent); }
+  .hour .meta .rain.zero { color: var(--muted); opacity: .45; }
+  .hour .temp { grid-area: temp; align-self: center; font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
   .hour.new-day { border-top: 1px solid var(--border); margin-top: .25rem; padding-top: .9rem; position: relative; }
   .hour.new-day::before {
     content: attr(data-day);
@@ -308,8 +311,10 @@ function renderForecast(rows) {
       <div class="time">${hh}</div>
       <div class="icon">${icon}</div>
       <div class="desc">${desc}</div>
-      <div class="wind">${wind}</div>
-      <div class="rain ${rainVal > 0 ? "" : "zero"}">${rain}</div>
+      <div class="meta">
+        <span class="wind">${wind}</span>
+        <span class="rain ${rainVal > 0 ? "" : "zero"}">${rain}</span>
+      </div>
       <div class="temp">${temp}</div>
     </div>`;
   }).join("");
