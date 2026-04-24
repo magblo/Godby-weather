@@ -368,6 +368,12 @@ async function load() {
 
 document.getElementById("reload").addEventListener("click", load);
 load();
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
+});
 </script>
 </body>
 </html>
