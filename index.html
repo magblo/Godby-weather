@@ -339,3 +339,281 @@ load();
 </script>
 </body>
 </html>
+    border: 1px solid var(--border);
+    background: var(--surface-solid);
+    cursor: pointer; display: inline-flex; align-items: center; gap: .4rem;
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    box-shadow: var(--shadow);
+  }
+  button#reload:hover { border-color: var(--accent); transform: translateY(-1px); }
+  button#reload:active { transform: translateY(0); }
+
+  .section-label {
+    text-transform: uppercase; letter-spacing: .1em; font-size: .72rem; font-weight: 600;
+    color: var(--muted); margin: 1.75rem .25rem .6rem;
+  }
+
+  .card {
+    background: var(--surface);
+    backdrop-filter: saturate(140%) blur(14px);
+    -webkit-backdrop-filter: saturate(140%) blur(14px);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 1.5rem 1.6rem;
+    box-shadow: var(--shadow);
+  }
+
+  .now-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+  .now-temp { font-size: 3.5rem; font-weight: 300; letter-spacing: -0.03em; line-height: 1; margin: 0; }
+  .now-temp .unit { font-size: 1.5rem; color: var(--muted); margin-left: .15rem; font-weight: 400; }
+  .now-meta { text-align: right; color: var(--muted); font-size: .85rem; }
+  .station-chip {
+    display: inline-flex; align-items: center; gap: .4rem;
+    background: var(--accent-soft); color: var(--accent);
+    padding: .3rem .65rem; border-radius: 999px;
+    font-size: .78rem; font-weight: 600; margin-bottom: .35rem;
+  }
+  .station-chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+
+  .metrics {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 1px; margin-top: 1.5rem;
+    background: var(--border); border-radius: 12px; overflow: hidden;
+  }
+  .metric { background: var(--surface-solid); padding: .85rem 1rem; }
+  .metric .k { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+  .metric .v { font-size: 1.15rem; font-weight: 500; margin-top: .15rem; font-variant-numeric: tabular-nums; }
+  .metric .v small { color: var(--muted); font-weight: 400; font-size: .8rem; margin-left: .15rem; }
+
+  .forecast { display: flex; flex-direction: column; }
+  .hour {
+    display: grid;
+    grid-template-columns: 48px 30px 1fr auto;
+    grid-template-areas:
+      "time icon desc temp"
+      "time icon meta temp";
+    column-gap: .7rem;
+    row-gap: .1rem;
+    padding: .7rem .25rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .hour:last-child { border-bottom: none; }
+  .hour .time { grid-area: time; align-self: center; font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 500; }
+  .hour .icon { grid-area: icon; align-self: center; font-size: 1.4rem; line-height: 1; text-align: center; }
+  .hour .desc { grid-area: desc; align-self: end; font-size: .9rem; color: var(--text); line-height: 1.25; }
+  .hour .meta { grid-area: meta; align-self: start; font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; gap: .65rem; }
+  .hour .meta .rain { color: var(--accent); }
+  .hour .meta .rain.zero { color: var(--muted); opacity: .45; }
+  .hour .temp { grid-area: temp; align-self: center; font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
+  .hour.new-day { border-top: 1px solid var(--border); margin-top: .25rem; padding-top: .9rem; position: relative; }
+  .hour.new-day::before {
+    content: attr(data-day);
+    position: absolute; top: -.55rem; left: 0;
+    background: var(--surface-solid);
+    color: var(--muted); font-size: .68rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .08em;
+    padding: 0 .5rem;
+  }
+
+  .skeleton { color: var(--muted); font-size: .9rem; }
+  .err { color: #dc2626; }
+  @media (prefers-color-scheme: dark) { .err { color: #f87171; } }
+
+  footer { text-align: center; margin-top: 2rem; color: var(--muted); font-size: .78rem; }
+  footer a { color: inherit; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1 class="title">Väder · <span class="loc">Godby</span></h1>
+      <p class="sub">Realtid och 48 h prognos · Åland</p>
+    </div>
+    <button id="reload" title="Uppdatera">↻ Uppdatera</button>
+  </header>
+
+  <div class="section-label">Just nu</div>
+  <div id="now" class="card"><span class="skeleton">Laddar…</span></div>
+
+  <div class="section-label">Kommande 48 timmar</div>
+  <div id="forecast" class="card"><span class="skeleton">Laddar…</span></div>
+
+  <footer>Data från <a href="https://en.ilmatieteenlaitos.fi/open-data" target="_blank" rel="noopener">Meteorologiska institutet (FMI)</a> · Öppen data</footer>
+</div>
+
+<script>
+const GODBY = { lat: 60.2308, lon: 19.8886 };
+const BBOX = "19.3,59.8,20.5,60.6";
+const FMI_NS = "http://xml.fmi.fi/schema/wfs/2.0";
+const GML_NS = "http://www.opengis.net/gml/3.2";
+
+const OBS_PARAMS = ["t2m", "ws_10min", "wd_10min", "rh", "r_1h", "p_sea"];
+const OBS_LABEL = {
+  t2m:      { name: "Temperatur",     unit: "°C" },
+  ws_10min: { name: "Vind",           unit: "m/s" },
+  wd_10min: { name: "Vindriktning",   unit: "°" },
+  rh:       { name: "Luftfuktighet",  unit: "%" },
+  r_1h:     { name: "Nederbörd (1h)", unit: "mm" },
+  p_sea:    { name: "Lufttryck",      unit: "hPa" },
+};
+
+// FMI weathersymbol3 (förenklad) - https://www.ilmatieteenlaitos.fi/latauspalvelun-pikaohje
+const SYMBOLS = {
+  1: ["☀️","Klart"], 2: ["🌤️","Halvklart"], 3: ["☁️","Mulet"],
+  21:["🌦️","Lätt regnskur"], 22:["🌧️","Regnskur"], 23:["⛈️","Kraftig regnskur"],
+  31:["🌦️","Lätt regn"], 32:["🌧️","Regn"], 33:["🌧️","Kraftigt regn"],
+  41:["🌨️","Lätt snöblandat regn"], 42:["🌨️","Snöblandat regn"],
+  51:["🌨️","Lätt snöfall"], 52:["🌨️","Snöfall"], 53:["❄️","Kraftigt snöfall"],
+  61:["⛈️","Åska"], 62:["⛈️","Kraftig åska"],
+  71:["🌨️","Lätta hagelskurar"], 72:["🌨️","Hagelskurar"], 73:["🌨️","Kraftiga hagelskurar"],
+  81:["🌦️","Lätt regnskur"], 82:["🌧️","Regnskur"], 83:["⛈️","Kraftig regnskur"],
+  91:["🌫️","Dis"], 92:["🌫️","Dimma"],
+};
+
+function haversine(a, b) {
+  const R = 6371, toRad = x => x * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
+  const s = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+async function wfs(params) {
+  const url = new URL("https://opendata.fmi.fi/wfs");
+  url.search = new URLSearchParams({ service: "WFS", version: "2.0.0", request: "getFeature", ...params });
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return new DOMParser().parseFromString(await res.text(), "text/xml");
+}
+
+// Hämta observationer (simple) + stationsnamn (multipointcoverage pointMember)
+async function fetchObservations() {
+  const start = new Date(Date.now() - 60 * 60 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
+  const [obsXml, namesXml] = await Promise.all([
+    wfs({ storedquery_id: "fmi::observations::weather::simple", bbox: BBOX, parameters: OBS_PARAMS.join(","), starttime: start }),
+    wfs({ storedquery_id: "fmi::observations::weather::multipointcoverage", bbox: BBOX, parameters: "t2m", starttime: start }),
+  ]);
+
+  // Bygg position → namn
+  const nameByPos = new Map();
+  for (const pm of namesXml.getElementsByTagNameNS(GML_NS, "Point")) {
+    const nameEl = pm.getElementsByTagNameNS(GML_NS, "name")[0];
+    const posEl = pm.getElementsByTagNameNS(GML_NS, "pos")[0];
+    if (!nameEl || !posEl) continue;
+    const [lat, lon] = posEl.textContent.trim().split(/\s+/).map(Number);
+    nameByPos.set(`${lat.toFixed(4)},${lon.toFixed(4)}`, nameEl.textContent.trim());
+  }
+
+  // Gruppera observationer per station
+  const stations = new Map();
+  for (const el of obsXml.getElementsByTagNameNS(FMI_NS, "BsWfsElement")) {
+    const [lat, lon] = el.getElementsByTagNameNS(GML_NS, "pos")[0].textContent.trim().split(/\s+/).map(Number);
+    const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
+    const time = el.getElementsByTagNameNS(FMI_NS, "Time")[0].textContent;
+    const name = el.getElementsByTagNameNS(FMI_NS, "ParameterName")[0].textContent;
+    const value = parseFloat(el.getElementsByTagNameNS(FMI_NS, "ParameterValue")[0].textContent);
+    if (Number.isNaN(value)) continue;
+    if (!stations.has(key)) stations.set(key, { lat, lon, name: nameByPos.get(key) ?? "Okänd station", values: {} });
+    const s = stations.get(key);
+    const prev = s.values[name];
+    if (!prev || new Date(time) > new Date(prev.time)) s.values[name] = { time, value };
+  }
+
+  if (stations.size === 0) throw new Error("Inga observationer hittades.");
+
+  const ranked = [...stations.values()]
+    .map(s => ({ ...s, dist: haversine(GODBY, s) }))
+    .sort((a, b) => a.dist - b.dist);
+  return ranked.find(s => s.values.t2m) ?? ranked[0];
+}
+
+async function fetchForecast() {
+  const end = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
+  const params = ["temperature", "windspeedms", "winddirection", "precipitation1h", "weathersymbol3"];
+  const xml = await wfs({
+    storedquery_id: "fmi::forecast::harmonie::surface::point::simple",
+    latlon: `${GODBY.lat},${GODBY.lon}`,
+    parameters: params.join(","),
+    endtime: end,
+    timestep: "60",
+  });
+
+  const byTime = new Map();
+  for (const el of xml.getElementsByTagNameNS(FMI_NS, "BsWfsElement")) {
+    const time = el.getElementsByTagNameNS(FMI_NS, "Time")[0].textContent;
+    const name = el.getElementsByTagNameNS(FMI_NS, "ParameterName")[0].textContent;
+    const value = parseFloat(el.getElementsByTagNameNS(FMI_NS, "ParameterValue")[0].textContent);
+    if (!byTime.has(time)) byTime.set(time, { time });
+    byTime.get(time)[name] = value;
+  }
+  return [...byTime.values()].sort((a, b) => a.time.localeCompare(b.time)).slice(0, 48);
+}
+
+function renderNow(s) {
+  const t = s.values.t2m?.value;
+  const time = s.values.t2m?.time ?? Object.values(s.values)[0]?.time;
+  const metrics = OBS_PARAMS
+    .filter(p => p !== "t2m" && s.values[p])
+    .map(p => `<div class="metric"><div class="k">${OBS_LABEL[p].name}</div><div class="v">${s.values[p].value}<small> ${OBS_LABEL[p].unit}</small></div></div>`)
+    .join("");
+  document.getElementById("now").innerHTML = `
+    <div class="now-head">
+      <div>
+        <div class="station-chip">${s.name}</div>
+        <div class="now-temp">${t != null ? t.toFixed(1) : "–"}<span class="unit">°C</span></div>
+      </div>
+      <div class="now-meta">
+        ${s.dist.toFixed(1)} km från Godby<br>
+        ${new Date(time).toLocaleString("sv-SE", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}
+      </div>
+    </div>
+    <div class="metrics">${metrics}</div>`;
+}
+
+function renderForecast(rows) {
+  if (!rows.length) { document.getElementById("forecast").textContent = "Ingen prognos tillgänglig."; return; }
+  let lastDay = null;
+  const items = rows.map(r => {
+    const d = new Date(r.time);
+    const [icon, desc] = SYMBOLS[Math.round(r.weathersymbol3)] ?? ["·", "—"];
+    const hh = d.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+    const temp = Number.isFinite(r.temperature) ? Math.round(r.temperature) + "°" : "–";
+    const wind = Number.isFinite(r.windspeedms) ? r.windspeedms.toFixed(0) + " m/s" : "";
+    const rainVal = Number.isFinite(r.precipitation1h) ? r.precipitation1h : 0;
+    const rain = rainVal > 0 ? rainVal.toFixed(1) + " mm" : "0 mm";
+    const dayKey = d.toDateString();
+    const isNewDay = dayKey !== lastDay && lastDay !== null;
+    const dayLabel = d.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" });
+    lastDay = dayKey;
+    return `<div class="hour${isNewDay ? " new-day" : ""}"${isNewDay ? ` data-day="${dayLabel}"` : ""}>
+      <div class="time">${hh}</div>
+      <div class="icon">${icon}</div>
+      <div class="desc">${desc}</div>
+      <div class="meta">
+        <span class="wind">${wind}</span>
+        <span class="rain ${rainVal > 0 ? "" : "zero"}">${rain}</span>
+      </div>
+      <div class="temp">${temp}</div>
+    </div>`;
+  }).join("");
+  document.getElementById("forecast").innerHTML = `<div class="forecast">${items}</div>`;
+}
+
+async function load() {
+  document.getElementById("now").textContent = "Laddar…";
+  document.getElementById("forecast").textContent = "Laddar…";
+  try {
+    const [obs, fc] = await Promise.all([fetchObservations(), fetchForecast()]);
+    renderNow(obs);
+    renderForecast(fc);
+  } catch (e) {
+    document.getElementById("now").innerHTML = `<span class="err">Fel: ${e.message}</span>`;
+    document.getElementById("forecast").innerHTML = "";
+  }
+}
+
+document.getElementById("reload").addEventListener("click", load);
+load();
+</script>
+</body>
+</html>
