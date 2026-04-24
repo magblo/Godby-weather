@@ -108,6 +108,11 @@
   .metric .v small { color: var(--muted); font-weight: 400; font-size: .8rem; margin-left: .15rem; }
   .wind-arrow { display: inline-block; color: var(--accent); transition: transform .3s ease; line-height: 1; }
 
+  .now-temp-row { display: flex; align-items: center; gap: .65rem; }
+  .now-icon svg { display: block; width: 2.75rem; height: 2.75rem; color: var(--accent); opacity: .9; }
+  .hour .icon svg { display: block; width: 22px; height: 22px; }
+  .offline-badge { display: inline-block; margin-top: .3rem; color: #f59e0b; font-size: .72rem; font-weight: 600; letter-spacing: .02em; }
+
   .forecast { display: flex; flex-direction: column; }
   .hour {
     display: grid;
@@ -180,18 +185,62 @@ const OBS_LABEL = {
   r_24h:    { name: "Nederbörd (24h)", unit: "mm",   format: v => v.toFixed(1) },
 };
 
-// FMI weathersymbol3 (förenklad) - https://www.ilmatieteenlaitos.fi/latauspalvelun-pikaohje
-const SYMBOLS = {
-  1: ["☀️","Klart"], 2: ["🌤️","Halvklart"], 3: ["☁️","Mulet"],
-  21:["🌦️","Lätt regnskur"], 22:["🌧️","Regnskur"], 23:["⛈️","Kraftig regnskur"],
-  31:["🌦️","Lätt regn"], 32:["🌧️","Regn"], 33:["🌧️","Kraftigt regn"],
-  41:["🌨️","Lätt snöblandat regn"], 42:["🌨️","Snöblandat regn"],
-  51:["🌨️","Lätt snöfall"], 52:["🌨️","Snöfall"], 53:["❄️","Kraftigt snöfall"],
-  61:["⛈️","Åska"], 62:["⛈️","Kraftig åska"],
-  71:["🌨️","Lätta hagelskurar"], 72:["🌨️","Hagelskurar"], 73:["🌨️","Kraftiga hagelskurar"],
-  81:["🌦️","Lätt regnskur"], 82:["🌧️","Regnskur"], 83:["⛈️","Kraftig regnskur"],
-  91:["🌫️","Dis"], 92:["🌫️","Dimma"],
+const _C  = `<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z"/>`;
+const _CU = `<g transform="translate(0,-3)">${_C}</g>`;
+const ICON_PATHS = {
+  sun:               `<circle cx="12" cy="12" r="4.5"/><line x1="12" y1="2.5" x2="12" y2="5.5"/><line x1="12" y1="18.5" x2="12" y2="21.5"/><line x1="2.5" y1="12" x2="5.5" y2="12"/><line x1="18.5" y1="12" x2="21.5" y2="12"/><line x1="5.05" y1="5.05" x2="7.17" y2="7.17"/><line x1="16.83" y1="16.83" x2="18.95" y2="18.95"/><line x1="18.95" y1="5.05" x2="16.83" y2="7.17"/><line x1="7.17" y1="16.83" x2="5.05" y2="18.95"/>`,
+  'sun-cloud':       `<circle cx="8" cy="8" r="3"/><line x1="8" y1="3.5" x2="8" y2="2"/><line x1="3.5" y1="8" x2="2" y2="8"/><line x1="4.88" y1="4.88" x2="3.76" y2="3.76"/><line x1="11.12" y1="4.88" x2="12.24" y2="3.76"/>${_C}`,
+  cloud:             _C,
+  'cloud-rain':      `${_CU}<line x1="9" y1="19" x2="8.5" y2="22"/><line x1="13" y1="19" x2="12.5" y2="22"/><line x1="17" y1="19" x2="16.5" y2="22"/>`,
+  'cloud-sleet':     `${_CU}<line x1="9" y1="19" x2="8.5" y2="22"/><line x1="17" y1="19" x2="16.5" y2="22"/><circle cx="13" cy="21" r="1.3" fill="currentColor" stroke="none"/>`,
+  'cloud-snow':      `${_CU}<line x1="9" y1="20" x2="9" y2="23"/><line x1="7.5" y1="21.5" x2="10.5" y2="21.5"/><line x1="13" y1="20" x2="13" y2="23"/><line x1="11.5" y1="21.5" x2="14.5" y2="21.5"/><line x1="17" y1="20" x2="17" y2="23"/><line x1="15.5" y1="21.5" x2="18.5" y2="21.5"/>`,
+  'cloud-lightning': `${_CU}<polyline points="13 19 11 22.5 13 22.5 11 25"/>`,
+  'cloud-hail':      `${_CU}<circle cx="9" cy="21.5" r="1.6" fill="currentColor" stroke="none"/><circle cx="13" cy="21.5" r="1.6" fill="currentColor" stroke="none"/><circle cx="17" cy="21.5" r="1.6" fill="currentColor" stroke="none"/>`,
+  fog:               `<line x1="2" y1="9" x2="22" y2="9"/><line x1="4" y1="13" x2="20" y2="13"/><line x1="2" y1="17" x2="22" y2="17"/>`,
 };
+function weatherIcon(id, size = 22) {
+  const p = ICON_PATHS[id] ?? ICON_PATHS.cloud;
+  return `<svg viewBox="0 0 24 24" overflow="visible" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="${size}" height="${size}" aria-hidden="true">${p}</svg>`;
+}
+
+// weathersymbol3 → [iconId, beskrivning]
+const SYMBOLS = {
+  1:  ['sun',               'Klart'],
+  2:  ['sun-cloud',         'Halvklart'],
+  3:  ['cloud',             'Mulet'],
+  21: ['cloud-rain',        'Lätt regnskur'],
+  22: ['cloud-rain',        'Regnskur'],
+  23: ['cloud-lightning',   'Kraftig regnskur'],
+  31: ['cloud-rain',        'Lätt regn'],
+  32: ['cloud-rain',        'Regn'],
+  33: ['cloud-rain',        'Kraftigt regn'],
+  41: ['cloud-sleet',       'Lätt snöblandat regn'],
+  42: ['cloud-sleet',       'Snöblandat regn'],
+  51: ['cloud-snow',        'Lätt snöfall'],
+  52: ['cloud-snow',        'Snöfall'],
+  53: ['cloud-snow',        'Kraftigt snöfall'],
+  61: ['cloud-lightning',   'Åska'],
+  62: ['cloud-lightning',   'Kraftig åska'],
+  71: ['cloud-hail',        'Lätta hagelskurar'],
+  72: ['cloud-hail',        'Hagelskurar'],
+  73: ['cloud-hail',        'Kraftiga hagelskurar'],
+  81: ['cloud-rain',        'Lätt regnskur'],
+  82: ['cloud-rain',        'Regnskur'],
+  83: ['cloud-lightning',   'Kraftig regnskur'],
+  91: ['fog',               'Dis'],
+  92: ['fog',               'Dimma'],
+};
+
+function wawaToIconId(w) {
+  const n = Math.round(w);
+  if (n <= 9)  return 'sun';
+  if (n <= 19 || (n >= 40 && n <= 49)) return 'fog';
+  if (n <= 39) return 'cloud';
+  if (n <= 69) return 'cloud-rain';
+  if (n <= 79) return 'cloud-snow';
+  if (n <= 89) return 'cloud-rain';
+  return 'cloud-lightning';
+}
 
 function haversine(a, b) {
   const R = 6371, toRad = x => x * Math.PI / 180;
@@ -213,7 +262,7 @@ async function fetchObservations() {
   const now = Date.now();
   const start = new Date(now - 24 * 60 * 60 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
   const recent = new Date(now - 60 * 60 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
-  const fmiParams = [...OBS_PARAMS.filter(p => p !== "r_24h"), "r_1h"].join(",");
+  const fmiParams = [...OBS_PARAMS.filter(p => p !== "r_24h"), "wawa", "r_1h"].join(",");
   const [obsXml, namesXml] = await Promise.all([
     wfs({ storedquery_id: "fmi::observations::weather::simple", bbox: BBOX, parameters: fmiParams, starttime: start }),
     wfs({ storedquery_id: "fmi::observations::weather::multipointcoverage", bbox: BBOX, parameters: "t2m", starttime: recent }),
@@ -284,9 +333,12 @@ async function fetchForecast() {
   return [...byTime.values()].sort((a, b) => a.time.localeCompare(b.time)).slice(0, 48);
 }
 
-function renderNow(s) {
+function renderNow(s, offline) {
   const t = s.values.t2m?.value;
   const time = s.values.t2m?.time ?? Object.values(s.values)[0]?.time;
+  const wawaVal = s.values.wawa?.value;
+  const iconHtml = (wawaVal != null && !isNaN(wawaVal))
+    ? `<div class="now-icon">${weatherIcon(wawaToIconId(wawaVal), 44)}</div>` : '';
   const metrics = OBS_PARAMS
     .filter(p => p !== "t2m" && s.values[p])
     .map(p => {
@@ -297,15 +349,20 @@ function renderNow(s) {
       return `<div class="metric"><div class="k">${lbl.name}</div><div class="v">${val}${unit}</div></div>`;
     })
     .join("");
+  const offlineBadge = offline ? `<div class="offline-badge">Offline · cachad data</div>` : '';
   document.getElementById("now").innerHTML = `
     <div class="now-head">
       <div>
         <div class="station-chip">${s.name}</div>
-        <div class="now-temp">${t != null ? t.toFixed(1) : "–"}<span class="unit">°C</span></div>
+        <div class="now-temp-row">
+          ${iconHtml}
+          <div class="now-temp">${t != null ? t.toFixed(1) : "–"}<span class="unit">°C</span></div>
+        </div>
       </div>
       <div class="now-meta">
         ${s.dist.toFixed(1)} km från Godby<br>
         ${new Date(time).toLocaleString("sv-SE", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}
+        ${offlineBadge}
       </div>
     </div>
     <div class="metrics">${metrics}</div>`;
@@ -316,7 +373,8 @@ function renderForecast(rows) {
   let lastDay = null;
   const items = rows.map(r => {
     const d = new Date(r.time);
-    const [icon, desc] = SYMBOLS[Math.round(r.weathersymbol3)] ?? ["·", "—"];
+    const [iconId, desc] = SYMBOLS[Math.round(r.weathersymbol3)] ?? ['cloud', '—'];
+    const icon = weatherIcon(iconId);
     const hh = d.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
     const temp = Number.isFinite(r.temperature) ? Math.round(r.temperature) + "°" : "–";
     const wind = Number.isFinite(r.windspeedms) ? r.windspeedms.toFixed(0) + " m/s" : "";
@@ -348,7 +406,7 @@ async function load() {
   document.getElementById("forecast").textContent = "Laddar…";
   try {
     const [obs, fc] = await Promise.all([fetchObservations(), fetchForecast()]);
-    renderNow(obs);
+    renderNow(obs, !navigator.onLine);
     renderForecast(fc);
     lastLoaded = Date.now();
   } catch (e) {
