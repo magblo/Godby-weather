@@ -147,7 +147,7 @@
   <header>
     <div>
       <h1 class="title">Väder · <span class="loc">Godby</span></h1>
-      <p class="sub">Realtid och 24 h prognos · Åland</p>
+      <p class="sub">Realtid och 48 h prognos · Åland</p>
     </div>
     <button id="reload" title="Uppdatera">↻ Uppdatera</button>
   </header>
@@ -155,7 +155,7 @@
   <div class="section-label">Just nu</div>
   <div id="now" class="card"><span class="skeleton">Laddar…</span></div>
 
-  <div class="section-label">Kommande 24 timmar</div>
+  <div class="section-label">Kommande 48 timmar</div>
   <div id="forecast" class="card"><span class="skeleton">Laddar…</span></div>
 
   <footer>Data från <a href="https://en.ilmatieteenlaitos.fi/open-data" target="_blank" rel="noopener">Meteorologiska institutet (FMI)</a> · Öppen data</footer>
@@ -247,7 +247,7 @@ async function fetchObservations() {
 }
 
 async function fetchForecast() {
-  const end = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
+  const end = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().replace(/\.\d+Z$/, "Z");
   const params = ["temperature", "windspeedms", "winddirection", "precipitation1h", "weathersymbol3"];
   const xml = await wfs({
     storedquery_id: "fmi::forecast::harmonie::surface::point::simple",
@@ -265,7 +265,7 @@ async function fetchForecast() {
     if (!byTime.has(time)) byTime.set(time, { time });
     byTime.get(time)[name] = value;
   }
-  return [...byTime.values()].sort((a, b) => a.time.localeCompare(b.time)).slice(0, 24);
+  return [...byTime.values()].sort((a, b) => a.time.localeCompare(b.time)).slice(0, 48);
 }
 
 function renderNow(s) {
