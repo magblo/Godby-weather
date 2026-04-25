@@ -291,6 +291,21 @@ function wawaToIconId(w) {
   return 'cloud-lightning';
 }
 
+// Finska → svenska stationsnamnsdelar (FMI returnerar namn på finska)
+const FI_SV = {
+  "Maarianhamina": "Mariehamn",
+  "lentoasema":    "flygplats",
+  "lentokenttä":   "flygplats",
+  "Länsisatama":   "Västra hamnen",
+  "Pohjoissatama": "Norra hamnen",
+  "Itäsatama":     "Östra hamnen",
+  "Eteläsatama":   "Södra hamnen",
+  "observatoriet": "observatoriet",
+};
+function translateStation(name) {
+  return Object.entries(FI_SV).reduce((s, [fi, sv]) => s.split(fi).join(sv), name);
+}
+
 function haversine(a, b) {
   const R = 6371, toRad = x => x * Math.PI / 180;
   const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
@@ -324,7 +339,7 @@ async function fetchObservations() {
     const posEl = pm.getElementsByTagNameNS(GML_NS, "pos")[0];
     if (!nameEl || !posEl) continue;
     const [lat, lon] = posEl.textContent.trim().split(/\s+/).map(Number);
-    nameByPos.set(`${lat.toFixed(4)},${lon.toFixed(4)}`, nameEl.textContent.trim());
+    nameByPos.set(`${lat.toFixed(4)},${lon.toFixed(4)}`, translateStation(nameEl.textContent.trim()));
   }
 
   // Gruppera observationer per station
