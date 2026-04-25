@@ -67,8 +67,33 @@
 
   header { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: 1.75rem; }
   .title { font-size: 1.75rem; font-weight: 600; letter-spacing: -0.02em; margin: 0; }
-  .title .loc { color: var(--accent); }
   .sub { color: var(--muted); margin: .25rem 0 0; font-size: .9rem; }
+
+  .loc-wrap { position: relative; display: inline-block; }
+  .loc-btn {
+    background: none; border: none; padding: 0; margin: 0; cursor: pointer; font: inherit;
+    font-size: inherit; font-weight: 600; letter-spacing: inherit;
+    color: var(--accent); display: inline-flex; align-items: center; gap: .25em; line-height: inherit;
+  }
+  .loc-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+  .loc-caret { font-size: .6em; opacity: .75; display: inline-block; transition: transform .2s; }
+  .loc-btn[aria-expanded="true"] .loc-caret { transform: rotate(180deg); }
+  .loc-menu {
+    position: absolute; top: calc(100% + .5rem); left: -.6rem; z-index: 200;
+    background: var(--surface-solid); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: var(--shadow); padding: .35rem; min-width: 160px;
+  }
+  .loc-menu[hidden] { display: none; }
+  .loc-opt {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: .6rem .85rem; background: none; border: none;
+    cursor: pointer; color: var(--text); font: inherit; font-size: .95rem;
+    border-radius: 9px; text-align: left; gap: 1rem;
+  }
+  .loc-opt:hover { background: var(--accent-soft); }
+  .loc-opt.active { color: var(--accent); font-weight: 600; }
+  .loc-opt .check { color: var(--accent); font-size: .8em; opacity: 0; }
+  .loc-opt.active .check { opacity: 1; }
 
 .section-label {
     text-transform: uppercase; letter-spacing: .1em; font-size: .72rem; font-weight: 600;
@@ -162,7 +187,7 @@
 <div class="wrap">
   <header>
     <div>
-      <h1 class="title">Väder · <span class="loc">Godby</span></h1>
+      <h1 class="title">Väder · <span class="loc-wrap"><button class="loc-btn" id="loc-btn" aria-haspopup="menu" aria-expanded="false"><span id="loc-name">Godby</span><span class="loc-caret">▾</span></button></span></h1>
       <p class="sub">Realtid och 48 h prognos · Åland</p>
     </div>
   </header>
@@ -177,8 +202,13 @@
 </div>
 
 <script>
-const GODBY = { lat: 60.2308, lon: 19.8886 };
+const LOCATIONS = [
+  { id: "godby",     name: "Godby",     lat: 60.2308, lon: 19.8886 },
+  { id: "mariehamn", name: "Mariehamn", lat: 60.0973, lon: 19.9348 },
+  { id: "julle",     name: "Julle",     lat: 60.1560, lon: 19.8785 },
+];
 const BBOX = "19.3,59.8,20.5,60.6";
+let activeLoc = LOCATIONS.find(l => l.id === (localStorage.getItem("loc") ?? "godby")) ?? LOCATIONS[0];
 const FMI_NS = "http://xml.fmi.fi/schema/wfs/2.0";
 const GML_NS = "http://www.opengis.net/gml/3.2";
 
@@ -325,7 +355,7 @@ async function fetchObservations() {
   }
 
   const ranked = [...stations.values()]
-    .map(s => ({ ...s, dist: haversine(GODBY, s) }))
+    .map(s => ({ ...s, dist: haversine(activeLoc, s) }))
     .sort((a, b) => a.dist - b.dist);
   return ranked.find(s => s.values.t2m) ?? ranked[0];
 }
@@ -335,7 +365,7 @@ async function fetchForecast() {
   const params = ["temperature", "windspeedms", "winddirection", "precipitation1h", "weathersymbol3", "PoP"];
   const xml = await wfs({
     storedquery_id: "fmi::forecast::edited::weather::scandinavia::point::simple",
-    latlon: `${GODBY.lat},${GODBY.lon}`,
+    latlon: `${activeLoc.lat},${activeLoc.lon}`,
     parameters: params.join(","),
     endtime: end,
     timestep: "60",
@@ -385,7 +415,7 @@ function renderNow(s, offline) {
         </div>
       </div>
       <div class="now-meta">
-        ${s.dist.toFixed(1)} km från Godby<br>
+        ${s.dist.toFixed(1)} km från ${activeLoc.name}<br>
         ${new Date(time).toLocaleString("sv-SE", { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}
         ${offlineBadge}
       </div>
@@ -441,6 +471,60 @@ function renderForecast(rows) {
   document.getElementById("forecast").innerHTML = `<div class="forecast">${items}</div>`;
 }
 
+// --- Platsväljarlogik ---
+function buildLocPicker() {
+  const btn = document.getElementById("loc-btn");
+  const wrap = btn.closest(".loc-wrap");
+
+  // Sätt initial rubrik från sparat val
+  document.getElementById("loc-name").textContent = activeLoc.name;
+  document.title = `Väder ${activeLoc.name}`;
+
+  // Bygg dropdown
+  const menu = document.createElement("div");
+  menu.className = "loc-menu";
+  menu.id = "loc-menu";
+  menu.hidden = true;
+  menu.setAttribute("role", "menu");
+
+  for (const loc of LOCATIONS) {
+    const opt = document.createElement("button");
+    opt.className = "loc-opt" + (loc.id === activeLoc.id ? " active" : "");
+    opt.setAttribute("role", "menuitem");
+    opt.innerHTML = `${loc.name}<span class="check">✓</span>`;
+    opt.addEventListener("click", e => {
+      e.stopPropagation();
+      activeLoc = loc;
+      localStorage.setItem("loc", loc.id);
+      document.getElementById("loc-name").textContent = loc.name;
+      document.title = `Väder ${loc.name}`;
+      menu.querySelectorAll(".loc-opt").forEach((o, i) => o.classList.toggle("active", LOCATIONS[i].id === loc.id));
+      closeMenu();
+      lastLoaded = 0;
+      load();
+    });
+    menu.appendChild(opt);
+  }
+  wrap.appendChild(menu);
+
+  btn.addEventListener("click", e => {
+    e.stopPropagation();
+    const opening = menu.hidden;
+    menu.hidden = !opening;
+    btn.setAttribute("aria-expanded", String(opening));
+  });
+
+  document.addEventListener("click", closeMenu);
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeMenu(); });
+}
+
+function closeMenu() {
+  const menu = document.getElementById("loc-menu");
+  const btn = document.getElementById("loc-btn");
+  if (menu) menu.hidden = true;
+  if (btn) btn.setAttribute("aria-expanded", "false");
+}
+
 let lastLoaded = 0;
 const STALE_MS = 5 * 60 * 1000;
 
@@ -465,6 +549,7 @@ function resumeApp() {
 
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") resumeApp(); });
 window.addEventListener("pageshow", e => { if (e.persisted) resumeApp(); });
+buildLocPicker();
 load();
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
